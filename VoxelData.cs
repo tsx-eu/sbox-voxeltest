@@ -7,9 +7,9 @@ namespace Voxels
 		bool Clear();
 		void UpdateMesh( VoxelMeshWriter writer );
 
-		bool Add<T>( T sdf, Bounds bounds, in Matrix transform, float detailSize, byte materialIndex )
+		bool Add<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField;
-		bool Subtract<T>( T sdf, Bounds bounds, in Matrix transform, float detailSize, byte materialIndex )
+		bool Subtract<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField;
 	}
 
@@ -65,7 +65,7 @@ namespace Voxels
 			}
 		}
 
-		private bool PrepareVoxelsForEditing( in Bounds bounds, float detailSize, out Vector3i outerMin, out Vector3i outerMax )
+		private bool PrepareVoxelsForEditing( BBox bounds, float detailSize, out Vector3i outerMin, out Vector3i outerMax )
 		{
 			if ( _voxels == null || _detailSize > detailSize && _subdivisions < MaxSubdivisions )
 			{
@@ -90,17 +90,17 @@ namespace Voxels
 
 				if ( oldVoxels != null )
 				{
-					Add( new VoxelArraySdf( oldVoxels, oldSize ), new Bounds( 0f, 1f ), Matrix.Identity, detailSize, 0 );
+					Add( new VoxelArraySdf( oldVoxels, oldSize ), new BBox( 0f, 1f ), Matrix.Identity, detailSize, 0 );
 				}
 			}
 
-			outerMin = Vector3i.Max( Vector3i.Floor( bounds.Min * (_size - 1) ), 0 );
-			outerMax = Vector3i.Min( Vector3i.Ceiling( bounds.Max * (_size - 1) ) + 1, _size );
+			outerMin = Vector3i.Max( Vector3i.Floor( bounds.Mins * (_size - 1) ), 0 );
+			outerMax = Vector3i.Min( Vector3i.Ceiling( bounds.Maxs * (_size - 1) ) + 1, _size );
 
 			return outerMin.x < outerMax.x && outerMin.y < outerMax.y && outerMin.z < outerMax.z;
 		}
 
-		public bool Add<T>( T sdf, Bounds bounds, in Matrix transform, float detailSize, byte materialIndex )
+		public bool Add<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			if ( !PrepareVoxelsForEditing( bounds, detailSize, out var outerMin, out var outerMax ) )
@@ -126,7 +126,7 @@ namespace Voxels
 			return changed;
 		}
 
-		public bool Subtract<T>( T sdf, Bounds bounds, in Matrix transform, float detailSize, byte materialIndex )
+		public bool Subtract<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			if ( !PrepareVoxelsForEditing( bounds, detailSize, out var outerMin, out var outerMax ) )

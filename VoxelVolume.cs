@@ -58,8 +58,8 @@ namespace Voxels
 			}
 		}
 
-		private void GetChunkBounds( in Matrix transform, in Bounds bounds,
-			out Matrix invChunkTransform, out Bounds chunkBounds,
+		private void GetChunkBounds( Matrix transform, BBox bounds,
+			out Matrix invChunkTransform, out BBox chunkBounds,
 			out Vector3i minChunkIndex, out Vector3i maxChunkIndex )
 		{
 			var worldToLocal = Matrix.CreateRotation( Rotation.Inverse )
@@ -72,10 +72,10 @@ namespace Voxels
 			invChunkTransform *= Matrix.CreateTranslation( _chunkOffset );
 			invChunkTransform *= localTransform.Inverted;
 
-			chunkBounds = (localTransform * bounds - _chunkOffset) * _chunkScale;
+			chunkBounds = (localTransform.Transform( bounds ) + -_chunkOffset) * _chunkScale;
 
-			minChunkIndex = Vector3i.Floor( chunkBounds.Min ) - 1;
-			maxChunkIndex = Vector3i.Ceiling( chunkBounds.Max ) + 2;
+			minChunkIndex = Vector3i.Floor( chunkBounds.Mins ) - 1;
+			maxChunkIndex = Vector3i.Ceiling( chunkBounds.Maxs ) + 2;
 		}
 
 		private VoxelChunk GetOrCreateChunk( int index, Vector3i index3 )
@@ -95,7 +95,7 @@ namespace Voxels
 			return chunk;
 		}
 
-		public void Add<T>( T sdf, in Matrix transform, float detailSize, byte materialIndex )
+		public void Add<T>( T sdf, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			GetChunkBounds( transform, sdf.Bounds,
@@ -108,7 +108,7 @@ namespace Voxels
 			{
 				var chunk = GetOrCreateChunk( chunkIndex, chunkIndex3 );
 
-				if ( chunk.Data.Add( sdf, chunkBounds - chunkIndex3,
+				if ( chunk.Data.Add( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
 					chunkDetailSize, materialIndex ) )
 				{
@@ -117,7 +117,7 @@ namespace Voxels
 			}
 		}
 
-		public void Subtract<T>( T sdf, in Matrix transform, float detailSize, byte materialIndex )
+		public void Subtract<T>( T sdf, Matrix transform, float detailSize, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			GetChunkBounds( transform, sdf.Bounds,
@@ -130,7 +130,7 @@ namespace Voxels
 			{
 				var chunk = GetOrCreateChunk( chunkIndex, chunkIndex3 );
 
-				if ( chunk.Data.Subtract( sdf, chunkBounds - chunkIndex3,
+				if ( chunk.Data.Subtract( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
 					chunkDetailSize, materialIndex ) )
 				{
