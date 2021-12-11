@@ -8,6 +8,58 @@ namespace Voxels
 	{
 		private static readonly List<VoxelMeshWriter> _sPool = new List<VoxelMeshWriter>();
 
+		private ref struct SpanList<T>
+			where T : struct
+		{
+			private Span<T> _span;
+
+			public int Count { get; private set; }
+
+			public ref T this[int index]
+			{
+				get
+				{
+					if ( index >= Count ) throw new IndexOutOfRangeException();
+
+					return ref _span[index];
+				}
+			}
+
+			public SpanList( ref Span<T> span )
+			{
+				_span = span;
+
+				Count = 0;
+			}
+
+			public void Add( T value )
+			{
+				if ( Count >= _span.Length ) throw new Exception( "Capacity exceeded." );
+
+				_span[Count++] = value;
+			}
+
+			public void RemoveAt( int index )
+			{
+				if ( Count <= 0 )
+				{
+					if ( Count >= _span.Length ) throw new Exception( "Attempting to remove from an empty list." );
+				}
+
+				--Count;
+
+				for ( var i = index; i < Count; ++i )
+				{
+					_span[i] = _span[i + 1];
+				}
+			}
+
+			public void Clear()
+			{
+				Count = 0;
+			}
+		}
+
 		public static VoxelMeshWriter Rent()
 		{
 			if ( _sPool.Count > 0 )
@@ -39,8 +91,6 @@ namespace Voxels
 
 		private bool _isInPool;
 
-		private readonly Voxel[] _corners = new Voxel[8];
-
 		public List<SimpleVertex> Vertices { get; } = new List<SimpleVertex>();
 
 		public Vector3 Offset { get; set; } = 0f;
@@ -54,71 +104,71 @@ namespace Voxels
 			Scale = 1f;
 		}
 
-		private readonly List<Intersection> _faceIntersections = new List<Intersection>( 4 );
-		private readonly List<(Intersection a, Intersection b)> _dualEdges = new List<(Intersection a, Intersection b)>( 12 );
-
-		private void ProcessEdge( CubeVertex v0, CubeVertex v1, Voxel val0, Voxel val1 )
+		private void ProcessEdge( ref SpanList<Intersection> intersections, CubeVertex v0, CubeVertex v1, Voxel val0, Voxel val1 )
 		{
 			if ( val0.RawValue >= 128 == val1.RawValue >= 128 ) return;
 
 			var t = val0.Value / (val0.Value - val1.Value);
 
-			_faceIntersections.Add( new Intersection( v0, v1, t ) );
+			intersections.Add( new Intersection( v0, v1, t ) );
 		}
 
-		private void ProcessFace( CubeFace face )
+		private void ProcessFace( ref SpanList<(Intersection a, Intersection b)> dualEdges, ref Span<Voxel> corners, CubeFace face )
 		{
 			CubeVertex.GetFace( face, out var v00, out var v01, out var v10, out var v11 );
 
-			var value00 = _corners[v00.Index];
-			var value01 = _corners[v01.Index];
-			var value10 = _corners[v10.Index];
-			var value11 = _corners[v11.Index];
+			var value00 = corners[v00.Index];
+			var value01 = corners[v01.Index];
+			var value10 = corners[v10.Index];
+			var value11 = corners[v11.Index];
 
-			_faceIntersections.Clear();
+			Span<Intersection> faceIntersectionSpan = stackalloc Intersection[4];
+			var faceIntersections = new SpanList<Intersection>( ref faceIntersectionSpan );
 
-			ProcessEdge( v00, v01, value00, value01 );
-			ProcessEdge( v01, v11, value01, value11 );
-			ProcessEdge( v11, v10, value11, value10 );
-			ProcessEdge( v10, v00, value10, value00 );
+			ProcessEdge( ref faceIntersections, v00, v01, value00, value01 );
+			ProcessEdge( ref faceIntersections, v01, v11, value01, value11 );
+			ProcessEdge( ref faceIntersections, v11, v10, value11, value10 );
+			ProcessEdge( ref faceIntersections, v10, v00, value10, value00 );
 
-			if ( _faceIntersections.Count == 0 ) return;
-			if ( _faceIntersections.Count == 4 )
+			if ( faceIntersections.Count == 0 ) return;
+
+			var readOffset = 0;
+
+			if ( faceIntersections.Count == 4 )
 			{
-				var length0 = (_faceIntersections[1].Pos - _faceIntersections[0].Pos).Length +
-							 (_faceIntersections[3].Pos - _faceIntersections[2].Pos).Length;
+				var length0 = (faceIntersections[1].Pos - faceIntersections[0].Pos).Length +
+							  (faceIntersections[3].Pos - faceIntersections[2].Pos).Length;
 
-				var length1 = (_faceIntersections[2].Pos - _faceIntersections[1].Pos).Length +
-							  (_faceIntersections[0].Pos - _faceIntersections[3].Pos).Length;
+				var length1 = (faceIntersections[2].Pos - faceIntersections[1].Pos).Length +
+							  (faceIntersections[0].Pos - faceIntersections[3].Pos).Length;
 
 				if ( length1 < length0 )
 				{
-					_faceIntersections.Insert( 0, _faceIntersections[3] );
-					_faceIntersections.RemoveAt( 4 );
+					readOffset = 1;
 				}
 			}
 
-			for ( var i = 0; i < _faceIntersections.Count; i += 2 )
+			for ( var i = 0; i < faceIntersections.Count; i += 2 )
 			{
-				var i0 = _faceIntersections[i];
-				var i1 = _faceIntersections[(i + 1) % _faceIntersections.Count];
+				var i0 = faceIntersections[(readOffset + i) % faceIntersections.Count];
+				var i1 = faceIntersections[(readOffset + i + 1) % faceIntersections.Count];
 
-				if ( _corners[i0.Vert1.Index].RawValue >= 128 )
+				if ( corners[i0.Vert1.Index].RawValue >= 128 )
 				{
-					_dualEdges.Add( (i1, i0) );
+					dualEdges.Add( (i1, i0) );
 				}
 				else
 				{
-					_dualEdges.Add( (i0, i1) );
+					dualEdges.Add( (i0, i1) );
 				}
 			}
 		}
 
-		private int IndexOfNextDualEdge( in Intersection prev )
+		private int IndexOfNextDualEdge( ref SpanList<(Intersection a, Intersection b)> dualEdges, in Intersection prev )
 		{
-			for ( var i = 0; i < _dualEdges.Count; ++i )
+			for ( var i = 0; i < dualEdges.Count; ++i )
 			{
-				var dualEdge = _dualEdges[i];
+				var dualEdge = dualEdges[i];
 				if ( dualEdge.a.Equals( prev ) || dualEdge.b.Equals( prev ) )
 				{
 					return i;
@@ -134,31 +184,39 @@ namespace Voxels
 			Voxel x0y0z1, Voxel x1y0z1,
 			Voxel x0y1z1, Voxel x1y1z1 )
 		{
-			_corners[0] = x0y0z0;
-			_corners[1] = x1y0z0;
-			_corners[2] = x0y1z0;
-			_corners[3] = x1y1z0;
-			_corners[4] = x0y0z1;
-			_corners[5] = x1y0z1;
-			_corners[6] = x0y1z1;
-			_corners[7] = x1y1z1;
+			Span<Voxel> corners = stackalloc Voxel[8];
 
-			_dualEdges.Clear();
+			corners[0] = x0y0z0;
+			corners[1] = x1y0z0;
+			corners[2] = x0y1z0;
+			corners[3] = x1y1z0;
+			corners[4] = x0y0z1;
+			corners[5] = x1y0z1;
+			corners[6] = x0y1z1;
+			corners[7] = x1y1z1;
 
-			ProcessFace( CubeFace.XMin );
-			ProcessFace( CubeFace.XMax );
-			ProcessFace( CubeFace.YMin );
-			ProcessFace( CubeFace.YMax );
-			ProcessFace( CubeFace.ZMin );
-			ProcessFace( CubeFace.ZMax );
+			Span<(Intersection, Intersection)> dualEdgesSpan = stackalloc (Intersection, Intersection)[12];
+			var dualEdges = new SpanList<(Intersection a, Intersection b)>( ref dualEdgesSpan );
+
+			ProcessFace( ref dualEdges, ref corners, CubeFace.XMin );
+			ProcessFace( ref dualEdges, ref corners, CubeFace.XMax );
+			ProcessFace( ref dualEdges, ref corners, CubeFace.YMin );
+			ProcessFace( ref dualEdges, ref corners, CubeFace.YMax );
+			ProcessFace( ref dualEdges, ref corners, CubeFace.ZMin );
+			ProcessFace( ref dualEdges, ref corners, CubeFace.ZMax );
+
+			if ( dualEdges.Count == 0 )
+			{
+				return;
+			}
 
 			var offset = Offset + index3 * Scale * size;
 			var scale = Scale * size;
 
-			while ( _dualEdges.Count > 0 )
+			while ( dualEdges.Count > 0 )
 			{
-				var nextIndex = _dualEdges.Count - 1;
-				var first = _dualEdges[nextIndex];
+				var nextIndex = dualEdges.Count - 1;
+				var first = dualEdges[nextIndex];
 				(Intersection a, Intersection b) prev = default;
 
 				var a = offset + first.a.Pos * scale;
@@ -168,8 +226,8 @@ namespace Voxels
 
 				do
 				{
-					var next = _dualEdges[nextIndex];
-					_dualEdges.RemoveAt( nextIndex );
+					var next = dualEdges[nextIndex];
+					dualEdges.RemoveAt( nextIndex );
 
 					if ( next.b.Equals( prev.b ) )
 					{
@@ -193,7 +251,7 @@ namespace Voxels
 					prev = next;
 
 					++edgeLoopVertIndex;
-				} while ( (nextIndex = IndexOfNextDualEdge( prev.b )) != -1 );
+				} while ( (nextIndex = IndexOfNextDualEdge( ref dualEdges, prev.b )) != -1 );
 			}
 		}
 	}

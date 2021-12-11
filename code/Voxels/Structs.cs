@@ -28,6 +28,11 @@ namespace Voxels
 			return new Vector3i( lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z );
 		}
 
+		public static Vector3i operator -( Vector3i vector )
+		{
+			return new Vector3i( -vector.x, -vector.y, -vector.z );
+		}
+
 		public static bool operator ==( Vector3i lhs, Vector3i rhs )
 		{
 			return lhs.Equals( rhs );
@@ -98,58 +103,6 @@ namespace Voxels
 		public override string ToString()
 		{
 			return $"({x} {y} {z})";
-		}
-	}
-
-	public readonly struct Bounds
-	{
-		public static Bounds operator *( Matrix transform, Bounds box )
-		{
-			var v000 = transform.Transform( new Vector3( box.Min.x, box.Min.y, box.Min.z ) );
-			var v100 = transform.Transform( new Vector3( box.Max.x, box.Min.y, box.Min.z ) );
-			var v010 = transform.Transform( new Vector3( box.Min.x, box.Max.y, box.Min.z ) );
-			var v110 = transform.Transform( new Vector3( box.Max.x, box.Max.y, box.Min.z ) );
-			var v001 = transform.Transform( new Vector3( box.Min.x, box.Min.y, box.Max.z ) );
-			var v101 = transform.Transform( new Vector3( box.Max.x, box.Min.y, box.Max.z ) );
-			var v011 = transform.Transform( new Vector3( box.Min.x, box.Max.y, box.Max.z ) );
-			var v111 = transform.Transform( new Vector3( box.Max.x, box.Max.y, box.Max.z ) );
-
-			return new Bounds(
-				Vector3.Min(
-					Vector3.Min( Vector3.Min( v000, v100 ), Vector3.Min( v010, v110 ) ),
-					Vector3.Min( Vector3.Min( v001, v101 ), Vector3.Min( v011, v111 ) ) ),
-				Vector3.Max(
-					Vector3.Max( Vector3.Max( v000, v100 ), Vector3.Max( v010, v110 ) ),
-					Vector3.Max( Vector3.Max( v001, v101 ), Vector3.Max( v011, v111 ) ) ) );
-		}
-
-		public static Bounds operator +( Bounds box, Vector3 translation )
-		{
-			return new Bounds( box.Min + translation, box.Max + translation );
-		}
-
-		public static Bounds operator -( Bounds box, Vector3 translation )
-		{
-			return new Bounds( box.Min - translation, box.Max - translation );
-		}
-
-		public static Bounds operator *( Bounds box, Vector3 scale )
-		{
-			return new Bounds( box.Min * scale, box.Max * scale );
-		}
-
-		public Vector3 Min { get; }
-		public Vector3 Max { get; }
-
-		public Bounds( Vector3 min, Vector3 max )
-		{
-			Min = min;
-			Max = max;
-		}
-
-		public Bounds Extended( Vector3 extent )
-		{
-			return new Bounds( Min - extent, Max + extent );
 		}
 	}
 

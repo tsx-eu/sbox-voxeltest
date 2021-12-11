@@ -5,6 +5,26 @@ namespace Voxels
 {
 	public static class Helpers
 	{
+		public static BBox Transform( this Matrix matrix, BBox box )
+		{
+			var v000 = matrix.Transform( new Vector3( box.Mins.x, box.Mins.y, box.Mins.z ) );
+			var v100 = matrix.Transform( new Vector3( box.Maxs.x, box.Mins.y, box.Mins.z ) );
+			var v010 = matrix.Transform( new Vector3( box.Mins.x, box.Maxs.y, box.Mins.z ) );
+			var v110 = matrix.Transform( new Vector3( box.Maxs.x, box.Maxs.y, box.Mins.z ) );
+			var v001 = matrix.Transform( new Vector3( box.Mins.x, box.Mins.y, box.Maxs.z ) );
+			var v101 = matrix.Transform( new Vector3( box.Maxs.x, box.Mins.y, box.Maxs.z ) );
+			var v011 = matrix.Transform( new Vector3( box.Mins.x, box.Maxs.y, box.Maxs.z ) );
+			var v111 = matrix.Transform( new Vector3( box.Maxs.x, box.Maxs.y, box.Maxs.z ) );
+
+			return new BBox(
+				Vector3.Min(
+					Vector3.Min( Vector3.Min( v000, v100 ), Vector3.Min( v010, v110 ) ),
+					Vector3.Min( Vector3.Min( v001, v101 ), Vector3.Min( v011, v111 ) ) ),
+				Vector3.Max(
+					Vector3.Max( Vector3.Max( v000, v100 ), Vector3.Max( v010, v110 ) ),
+					Vector3.Max( Vector3.Max( v001, v101 ), Vector3.Max( v011, v111 ) ) ) );
+		}
+
 		public static float Lerp( float a, float b, float t )
 		{
 			return a + (b - a) * t;

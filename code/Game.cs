@@ -83,7 +83,7 @@ namespace VoxelTest
 				var centerRange = new BBox( bounds.Mins + size + smoothing, bounds.Maxs - size - smoothing );
 				var center = centerRange.RandomPointInside;
 
-				voxels.Add( new BoundsSdf( center - size * 0.5f, center + size * 0.5f, smoothing ), Matrix.Identity, 8f, 0 );
+				voxels.Add( new BBoxSdf( center - size * 0.5f, center + size * 0.5f, smoothing ), Matrix.Identity, 8f, 0 );
 			}
 
 			Log.Info( $"Spawned {count} boxes in {timer.Elapsed.TotalMilliseconds:F2}ms" );

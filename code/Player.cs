@@ -33,12 +33,16 @@ namespace VoxelTest
 			EnableDrawing = false;
 		}
 
+		public TimeSince LastEdit { get; private set; }
+
 		public override void Simulate( Client cl )
 		{
 			base.Simulate( cl );
 
-			if ( IsClient && Game.Voxels != null )
+			if ( IsClient && Game.Voxels != null && LastEdit > 1f / 60f )
 			{
+				LastEdit = 0f;
+
 				Game.Voxels.Subtract( new SphereSdf( (Position + EyePos) * 0.5f, 32f, 16f ),
 					Matrix.CreateScale( new Vector3( 1f, 1f, 2f ) ), 8f, 0 );
 			}

@@ -6,7 +6,7 @@ namespace Voxels
 
 	public interface ISignedDistanceField
 	{
-		Bounds Bounds { get; }
+		BBox Bounds { get; }
 
 		float this[Vector3 pos] { get; }
 	}
@@ -28,31 +28,31 @@ namespace Voxels
 			_invMaxDistance = 1f / maxDistance;
 		}
 
-		public Bounds Bounds => new Bounds( Center - Radius - MaxDistance, Center + Radius + MaxDistance );
+		public BBox Bounds => new BBox( Center - Radius - MaxDistance, Center + Radius + MaxDistance );
 
 		public float this[Vector3 pos] => (Radius - (Center - pos).Length) * _invMaxDistance;
 	}
 
-	public readonly struct BoundsSdf : ISignedDistanceField
+	public readonly struct BBoxSdf : ISignedDistanceField
 	{
-		public Bounds Bounds { get; }
+		public BBox Box { get; }
 		public float MaxDistance { get; }
 
 		private readonly float _invMaxDistance;
 
-		Bounds ISignedDistanceField.Bounds => Bounds.Extended( MaxDistance );
+		BBox ISignedDistanceField.Bounds => new BBox(Box.Mins - MaxDistance, Box.Maxs + MaxDistance);
 
-		public BoundsSdf( Bounds bounds, float maxDistance )
+		public BBoxSdf( BBox box, float maxDistance )
 		{
-			Bounds = bounds;
+			Box = box;
 			MaxDistance = maxDistance;
 
 			_invMaxDistance = 1f / maxDistance;
 		}
 
-		public BoundsSdf( Vector3 min, Vector3 max, float maxDistance )
+		public BBoxSdf( Vector3 min, Vector3 max, float maxDistance )
 		{
-			Bounds = new Bounds( min, max );
+			Box = new BBox( min, max );
 			MaxDistance = maxDistance;
 
 			_invMaxDistance = 1f / maxDistance;
@@ -62,7 +62,7 @@ namespace Voxels
 		{
 			get
 			{
-				var dist3 = Vector3.Min( pos - Bounds.Min, Bounds.Max - pos );
+				var dist3 = Vector3.Min( pos - Box.Mins, Box.Maxs - pos );
 				return Math.Min( dist3.x, Math.Min( dist3.y, dist3.z ) ) * _invMaxDistance;
 			}
 		}
@@ -83,7 +83,7 @@ namespace Voxels
 			_stride = new Vector3i( 1, size.x, size.x * size.y );
 		}
 
-		public Bounds Bounds => new Bounds( Vector3.Zero, Vector3.One );
+		public BBox Bounds => new BBox( Vector3.Zero, Vector3.One );
 
 		public float this[Vector3 pos]
 		{
