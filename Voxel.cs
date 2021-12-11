@@ -68,34 +68,4 @@ namespace Voxels
 			Tangent = tangent;
 		}
 	}
-
-	[StructLayout( LayoutKind.Sequential )]
-	public readonly struct CompressedVoxelVertex
-	{
-		private const int MaxPositionValue = 1 << 9;
-		private const int MaxNormalValue = 127;
-
-		public static VertexAttribute[] Layout { get; } =
-		{
-			new VertexAttribute( VertexAttributeType.TexCoord, VertexAttributeFormat.UInt32, 1, 10 ),
-			new VertexAttribute( VertexAttributeType.TexCoord, VertexAttributeFormat.UInt32, 1, 11 ),
-			// new VertexAttribute( VertexAttributeType.TexCoord, VertexAttributeFormat.UInt8, 1, 12 )
-		};
-
-		public readonly uint PositionData;
-		public readonly uint NormalData;
-
-		public CompressedVoxelVertex( Vector3 position, Vector3 normal, byte matIndex )
-		{
-			var intPos = Vector3i.Clamp( Vector3i.Round( position * MaxPositionValue ), 0, MaxPositionValue );
-
-			PositionData = (uint)((intPos.x & 0x3ff) | ((intPos.y & 0x3ff) << 10) | ((intPos.z & 0x3ff) << 20));
-
-			var intNormal = Vector3i.Clamp( Vector3i.Round( normal * MaxNormalValue ) + 128, 1, 255 );
-
-			NormalData = (uint)((intNormal.x & 0xff) | ((intNormal.y & 0xff) << 8) | ((intNormal.z & 0xff) << 16));
-
-			// MaterialIndex = matIndex;
-		}
-	}
 }

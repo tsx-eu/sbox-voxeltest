@@ -91,7 +91,7 @@ namespace Voxels
 
 		private bool _isInPool;
 
-		public List<SimpleVertex> Vertices { get; } = new List<SimpleVertex>();
+		public List<VoxelVertex> Vertices { get; } = new List<VoxelVertex>();
 
 		public Vector3 Offset { get; set; } = 0f;
 		public Vector3 Scale { get; set; } = 1f;
@@ -242,9 +242,9 @@ namespace Voxels
 						var normal = cross.Normal;
 						var tangent = (b - a).Normal;
 
-						Vertices.Add( new SimpleVertex( a, normal, tangent, new Vector2( a.x, a.y ) ) );
-						Vertices.Add( new SimpleVertex( b, normal, tangent, new Vector2( a.x, a.y ) ) );
-						Vertices.Add( new SimpleVertex( c, normal, tangent, new Vector2( a.x, a.y ) ) );
+						Vertices.Add( new VoxelVertex( a, normal, tangent ) );
+						Vertices.Add( new VoxelVertex( b, normal, tangent ) );
+						Vertices.Add( new VoxelVertex( c, normal, tangent ) );
 					}
 
 					b = c;
