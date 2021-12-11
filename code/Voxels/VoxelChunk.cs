@@ -44,7 +44,7 @@ namespace Voxels
 		{
 			if ( _mesh != null ) return;
 
-			var material = Material.Load( "materials/dev/black_grid_8.vmat" );
+			var material = Material.Load( "materials/voxeltest.vmat" );
 
 			_mesh = new Mesh( material )
 			{
@@ -80,7 +80,7 @@ namespace Voxels
 				}
 				else
 				{
-					_mesh.CreateVertexBuffer( writer.Vertices.Count, SimpleVertex.Layout, writer.Vertices );
+					_mesh.CreateVertexBuffer( writer.Vertices.Count, VoxelVertex.Layout, writer.Vertices );
 				}
 
 				_mesh.SetVertexRange( 0, writer.Vertices.Count );
