@@ -109,7 +109,7 @@ namespace Voxels
 
 			foreach ( var (chunkIndex3, _) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
 			{
-				var chunk = GetOrCreateChunk( chunkIndex3 );
+				if ( !_chunks.TryGetValue( chunkIndex3, out var chunk ) ) continue;
 
 				if ( chunk.Data.Subtract( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
