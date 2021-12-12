@@ -26,6 +26,16 @@ namespace Voxels
 			CreateChunks();
 		}
 
+		protected override void OnDestroy()
+		{
+			foreach ( var chunk in _chunks )
+			{
+				chunk.Delete();
+			}
+
+			_chunks = null;
+		}
+
 		private void CreateChunks()
 		{
 			if ( _chunks != null )
