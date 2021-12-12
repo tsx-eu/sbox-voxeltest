@@ -1,4 +1,4 @@
-﻿using Sandbox;
+using Sandbox;
 
 namespace Voxels
 {
@@ -6,6 +6,7 @@ namespace Voxels
 	{
 		public Vector3 LocalSize { get; private set; }
 		public float ChunkSize { get; private set; }
+		public int ChunkSubdivisions { get; private set;}
 
 		private float _chunkScale;
 		private Vector3i _chunkCount;
@@ -18,10 +19,11 @@ namespace Voxels
 
 		}
 
-		public VoxelVolume( Vector3 size, float chunkSize )
+		public VoxelVolume( Vector3 size, float chunkSize, int chunkSubdivisions = 4 )
 		{
 			LocalSize = size;
 			ChunkSize = chunkSize;
+			ChunkSubdivisions = chunkSubdivisions;
 
 			CreateChunks();
 		}
@@ -94,7 +96,7 @@ namespace Voxels
 
 			if ( chunk == null )
 			{
-				_chunks[index] = chunk = new VoxelChunk( new ArrayVoxelData( 4, 4 ), ChunkSize );
+				_chunks[index] = chunk = new VoxelChunk( new ArrayVoxelData( ChunkSubdivisions ), ChunkSize );
 
 				chunk.Name = $"Chunk {index3.x} {index3.y} {index3.z}";
 
@@ -105,14 +107,12 @@ namespace Voxels
 			return chunk;
 		}
 
-		public void Add<T>( T sdf, Matrix transform, float detailSize, byte materialIndex )
+		public void Add<T>( T sdf, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			GetChunkBounds( transform, sdf.Bounds,
 				out var invChunkTransform, out var chunkBounds,
 				out var minChunkIndex, out var maxChunkIndex );
-
-			var chunkDetailSize = _chunkScale * detailSize;
 
 			foreach ( var (chunkIndex3, chunkIndex) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
 			{
@@ -120,21 +120,19 @@ namespace Voxels
 
 				if ( chunk.Data.Add( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
-					chunkDetailSize, materialIndex ) )
+					materialIndex ) )
 				{
 					chunk.InvalidateMesh();
 				}
 			}
 		}
 
-		public void Subtract<T>( T sdf, Matrix transform, float detailSize, byte materialIndex )
+		public void Subtract<T>( T sdf, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField
 		{
 			GetChunkBounds( transform, sdf.Bounds,
 				out var invChunkTransform, out var chunkBounds,
 				out var minChunkIndex, out var maxChunkIndex );
-
-			var chunkDetailSize = _chunkScale * detailSize;
 
 			foreach ( var (chunkIndex3, chunkIndex) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
 			{
@@ -142,7 +140,7 @@ namespace Voxels
 
 				if ( chunk.Data.Subtract( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
-					chunkDetailSize, materialIndex ) )
+					materialIndex ) )
 				{
 					chunk.InvalidateMesh();
 				}

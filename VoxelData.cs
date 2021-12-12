@@ -7,33 +7,37 @@ namespace Voxels
 		bool Clear();
 		void UpdateMesh( IVoxelMeshWriter writer );
 
-		bool Add<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
+		bool Add<T>( T sdf, BBox bounds, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField;
-		bool Subtract<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
+		bool Subtract<T>( T sdf, BBox bounds, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField;
 	}
 
 	public class ArrayVoxelData : IVoxelData
 	{
-		public int MinSubdivisions { get; }
-		public int MaxSubdivisions { get; }
+		public const int MaxSubdivisions = 5;
 
-		private int _subdivisions;
+		public int Subdivisions { get; }
 
 		private Voxel[] _voxels;
 		private Vector3i _size;
 		private Vector3 _scale;
-		private float _detailSize;
 
 		private bool _cleared;
+		private int _margin;
 
-		public ArrayVoxelData( int minSubdivisions, int maxSubdivisions )
+		public ArrayVoxelData( int subdivisions )
 		{
-			MinSubdivisions = minSubdivisions;
-			MaxSubdivisions = maxSubdivisions;
+			if ( subdivisions < 0 || subdivisions > MaxSubdivisions )
+			{
+				throw new ArgumentOutOfRangeException( nameof(subdivisions),
+					$"Expected {nameof(subdivisions)} to be between 0 and {MaxSubdivisions}." );
+			}
+
+			Subdivisions = subdivisions;
 
 			_cleared = true;
-			_subdivisions = MinSubdivisions;
+			_margin = 1;
 		}
 
 		public bool Clear()
@@ -54,33 +58,16 @@ namespace Voxels
 			writer.Write( _voxels, _size, 0, _size );
 		}
 
-		private bool PrepareVoxelsForEditing( BBox bounds, float detailSize, out Vector3i outerMin, out Vector3i outerMax )
+		private bool PrepareVoxelsForEditing( BBox bounds, out Vector3i outerMin, out Vector3i outerMax )
 		{
-			if ( _voxels == null || _detailSize > detailSize && _subdivisions < MaxSubdivisions )
+			if ( _voxels == null )
 			{
-				var targetSize = 1f / detailSize;
+				var resolution = 1 << Subdivisions;
 
-				while ( _subdivisions < MaxSubdivisions && 1 << _subdivisions < targetSize )
-				{
-					++_subdivisions;
-				}
-
-				var resolution = 1 << _subdivisions;
-
-				var oldVoxels = _voxels;
-				var oldSize = _size;
-				var oldDetailSize = _detailSize;
-
-				_size = new Vector3i( resolution + 1, resolution + 1, resolution + 1 );
-				_detailSize = 1f / resolution;
-				_scale = new Vector3( _detailSize, _detailSize, _detailSize );
+				_size = resolution + _margin * 2 + 1;
+				_scale = 1f / resolution;
 
 				_voxels = new Voxel[_size.x * _size.y * _size.z];
-
-				if ( oldVoxels != null )
-				{
-					Add( new VoxelArraySdf( oldVoxels, oldSize ), new BBox( 0f, 1f ), Matrix.Identity, detailSize, 0 );
-				}
 			}
 
 			outerMin = Vector3i.Max( Vector3i.Floor( bounds.Mins * (_size - 1) ), 0 );
@@ -89,10 +76,10 @@ namespace Voxels
 			return outerMin.x < outerMax.x && outerMin.y < outerMax.y && outerMin.z < outerMax.z;
 		}
 
-		public bool Add<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
+		public bool Add<T>( T sdf, BBox bounds, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField
 		{
-			if ( !PrepareVoxelsForEditing( bounds, detailSize, out var outerMin, out var outerMax ) )
+			if ( !PrepareVoxelsForEditing( bounds, out var outerMin, out var outerMax ) )
 			{
 				return false;
 			}
@@ -115,10 +102,10 @@ namespace Voxels
 			return changed;
 		}
 
-		public bool Subtract<T>( T sdf, BBox bounds, Matrix transform, float detailSize, byte materialIndex )
+		public bool Subtract<T>( T sdf, BBox bounds, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField
 		{
-			if ( !PrepareVoxelsForEditing( bounds, detailSize, out var outerMin, out var outerMax ) )
+			if ( !PrepareVoxelsForEditing( bounds, out var outerMin, out var outerMax ) )
 			{
 				return false;
 			}
