@@ -59,7 +59,7 @@ namespace VoxelTest
 				var radius = Rand.Float( 32f, 64f );
 				var centerRange = new BBox( bounds.Mins + radius + smoothing, bounds.Maxs - radius - smoothing );
 
-				voxels.Add( new SphereSdf( centerRange.RandomPointInside, radius, smoothing ), Matrix.Identity, 8f, 0 );
+				voxels.Add( new SphereSdf( centerRange.RandomPointInside, radius, smoothing ), Matrix.Identity, 0 );
 			}
 
 			Log.Info( $"Spawned {count} spheres in {timer.Elapsed.TotalMilliseconds:F2}ms" );
@@ -84,7 +84,7 @@ namespace VoxelTest
 				var centerRange = new BBox( bounds.Mins + size + smoothing, bounds.Maxs - size - smoothing );
 				var center = centerRange.RandomPointInside;
 
-				voxels.Add( new BBoxSdf( center - size * 0.5f, center + size * 0.5f, smoothing ), Matrix.Identity, 8f, 0 );
+				voxels.Add( new BBoxSdf( center - size * 0.5f, center + size * 0.5f, smoothing ), Matrix.Identity, 0 );
 			}
 
 			Log.Info( $"Spawned {count} boxes in {timer.Elapsed.TotalMilliseconds:F2}ms" );

@@ -43,8 +43,10 @@ namespace VoxelTest
 			{
 				LastEdit = 0f;
 
-				Game.Voxels.Subtract( new SphereSdf( (Position + EyePos) * 0.5f, 32f, 16f ),
-					Matrix.CreateScale( new Vector3( 1f, 1f, 2f ) ), 8f, 0 );
+				var transform = Matrix.CreateTranslation( Vector3.Lerp( Position, EyePos, 0.5f ) )
+					* Matrix.CreateScale( new Vector3( 1f, 1f, 2f ) );
+
+				Game.Voxels.Subtract( new SphereSdf( Vector3.Zero, 32f, 16f ), transform, 0 );
 			}
 
 			if ( !IsServer )
