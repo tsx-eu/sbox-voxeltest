@@ -1,4 +1,4 @@
-using Sandbox;
+﻿using Sandbox;
 
 namespace Voxels
 {
@@ -74,15 +74,15 @@ namespace Voxels
 			out Matrix invChunkTransform, out BBox chunkBounds,
 			out Vector3i minChunkIndex, out Vector3i maxChunkIndex )
 		{
-			var worldToLocal = Matrix.CreateRotation( Rotation.Inverse )
-				* Matrix.CreateScale( 1f / Scale )
+			var worldToLocal = Matrix.CreateScale( 1f / Scale )
+				* Matrix.CreateRotation( Rotation.Inverse )
 				* Matrix.CreateTranslation( -Position );
 
-			var localTransform = worldToLocal * transform;
+			var localTransform = transform * worldToLocal;
 
-			invChunkTransform = Matrix.CreateScale( ChunkSize );
-			invChunkTransform *= Matrix.CreateTranslation( _chunkOffset );
-			invChunkTransform *= localTransform.Inverted;
+			invChunkTransform = Matrix.CreateScale( ChunkSize )
+				* Matrix.CreateTranslation( _chunkOffset )
+				* localTransform.Inverted;
 
 			chunkBounds = (localTransform.Transform( bounds ) + -_chunkOffset) * _chunkScale;
 
