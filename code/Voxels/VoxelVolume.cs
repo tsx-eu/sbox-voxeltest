@@ -1,4 +1,5 @@
 ﻿using Sandbox;
+using System.Collections.Generic;
 
 namespace Voxels
 {
@@ -6,13 +7,13 @@ namespace Voxels
 	{
 		public Vector3 LocalSize { get; private set; }
 		public float ChunkSize { get; private set; }
-		public int ChunkSubdivisions { get; private set;}
+		public int ChunkSubdivisions { get; private set; }
 
 		private float _chunkScale;
 		private Vector3i _chunkCount;
 		private Vector3 _chunkOffset;
 
-		private VoxelChunk[] _chunks;
+		private readonly Dictionary<Vector3i, VoxelChunk> _chunks = new Dictionary<Vector3i, VoxelChunk>();
 
 		public VoxelVolume()
 		{
@@ -25,49 +26,24 @@ namespace Voxels
 			ChunkSize = chunkSize;
 			ChunkSubdivisions = chunkSubdivisions;
 
-			CreateChunks();
+			_chunkScale = 1f / ChunkSize;
+			_chunkCount = Vector3i.Ceiling( LocalSize * _chunkScale );
+			_chunkOffset = LocalSize * -0.5f;
 		}
 
 		protected override void OnDestroy()
 		{
-			foreach ( var chunk in _chunks )
-			{
-				chunk.Delete();
-			}
-
-			_chunks = null;
-		}
-
-		private void CreateChunks()
-		{
-			if ( _chunks != null )
-			{
-				for ( var i = 0; i < _chunks.Length; ++i )
-				{
-					_chunks[i]?.Delete();
-				}
-			}
-
-			_chunks = null;
-
-			_chunkScale = 1f / ChunkSize;
-			_chunkCount = Vector3i.Ceiling( LocalSize * _chunkScale );
-			_chunkOffset = LocalSize * -0.5f;
-
-			_chunks = new VoxelChunk[_chunkCount.x * _chunkCount.y * _chunkCount.z];
+			Clear();
 		}
 
 		public void Clear()
 		{
-			foreach ( var chunk in _chunks )
+			foreach ( var pair in _chunks )
 			{
-				if ( chunk == null ) continue;
-
-				if ( chunk.Data.Clear() )
-				{
-					chunk.InvalidateMesh();
-				}
+				pair.Value.Delete();
 			}
+
+			_chunks.Clear();
 		}
 
 		private void GetChunkBounds( Matrix transform, BBox bounds,
@@ -90,19 +66,16 @@ namespace Voxels
 			maxChunkIndex = Vector3i.Ceiling( chunkBounds.Maxs ) + 2;
 		}
 
-		private VoxelChunk GetOrCreateChunk( int index, Vector3i index3 )
+		private VoxelChunk GetOrCreateChunk( Vector3i index3 )
 		{
-			var chunk = _chunks[index];
+			if ( _chunks.TryGetValue( index3, out var chunk ) ) return chunk;
 
-			if ( chunk == null )
-			{
-				_chunks[index] = chunk = new VoxelChunk( new ArrayVoxelData( ChunkSubdivisions ), ChunkSize );
+			_chunks.Add( index3, chunk = new VoxelChunk( new ArrayVoxelData( ChunkSubdivisions ), ChunkSize ) );
 
-				chunk.Name = $"Chunk {index3.x} {index3.y} {index3.z}";
+			chunk.Name = $"Chunk {index3.x} {index3.y} {index3.z}";
 
-				chunk.SetParent( this );
-				chunk.LocalPosition = _chunkOffset + (Vector3)index3 * ChunkSize;
-			}
+			chunk.SetParent( this );
+			chunk.LocalPosition = _chunkOffset + (Vector3)index3 * ChunkSize;
 
 			return chunk;
 		}
@@ -114,9 +87,9 @@ namespace Voxels
 				out var invChunkTransform, out var chunkBounds,
 				out var minChunkIndex, out var maxChunkIndex );
 
-			foreach ( var (chunkIndex3, chunkIndex) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
+			foreach ( var (chunkIndex3, _) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
 			{
-				var chunk = GetOrCreateChunk( chunkIndex, chunkIndex3 );
+				var chunk = GetOrCreateChunk( chunkIndex3 );
 
 				if ( chunk.Data.Add( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,
@@ -134,9 +107,9 @@ namespace Voxels
 				out var invChunkTransform, out var chunkBounds,
 				out var minChunkIndex, out var maxChunkIndex );
 
-			foreach ( var (chunkIndex3, chunkIndex) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
+			foreach ( var (chunkIndex3, _) in _chunkCount.EnumerateArray3D( minChunkIndex, maxChunkIndex ) )
 			{
-				var chunk = GetOrCreateChunk( chunkIndex, chunkIndex3 );
+				var chunk = GetOrCreateChunk( chunkIndex3 );
 
 				if ( chunk.Data.Subtract( sdf, chunkBounds + -chunkIndex3,
 					Matrix.CreateTranslation( chunkIndex3 ) * invChunkTransform,

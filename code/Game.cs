@@ -36,9 +36,7 @@ namespace VoxelTest
 		{
 			if ( Voxels != null ) return Voxels;
 
-			Voxels = new VoxelVolume( new Vector3( 1024f, 1024f, 256f ), 256f );
-
-			Voxels.Position = Local.Client.Pawn.Position + Voxels.LocalSize.z * Vector3.Up * 0.25f;
+			Voxels = new VoxelVolume( new Vector3( 32_768f, 32_768f, 32_768f ), 256f );
 
 			return Voxels;
 		}
@@ -51,7 +49,7 @@ namespace VoxelTest
 			var timer = new Stopwatch();
 			timer.Start();
 
-			var bounds = new BBox( voxels.LocalSize * -0.5f, voxels.LocalSize * 0.5f ) + Voxels.Position;
+			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + Local.Client.Pawn.Position;
 			var smoothing = 16f;
 
 			for ( var i = 0; i < count; ++i )
@@ -75,7 +73,7 @@ namespace VoxelTest
 
 			var sizeRange = new BBox( 32, 128f );
 
-			var bounds = new BBox( voxels.LocalSize * -0.5f, voxels.LocalSize * 0.5f ) + Voxels.Position;
+			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + Local.Client.Pawn.Position;
 			var smoothing = 16f;
 
 			for ( var i = 0; i < count; ++i )
