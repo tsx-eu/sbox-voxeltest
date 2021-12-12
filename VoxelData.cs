@@ -37,7 +37,7 @@ namespace Voxels
 			Subdivisions = subdivisions;
 
 			_cleared = true;
-			_margin = 1;
+			_margin = 0;
 		}
 
 		public bool Clear()
