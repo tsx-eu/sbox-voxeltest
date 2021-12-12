@@ -54,7 +54,7 @@ namespace Voxels
 
 		public void UpdateMesh()
 		{
-			var writer = VoxelMeshWriter.Rent();
+			var writer = MarchingCubesMeshWriter.Rent();
 
 			writer.Scale = Size;
 
