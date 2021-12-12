@@ -28,7 +28,8 @@ namespace VoxelTest
 		[ClientCmd( "clear_voxels" )]
 		public static void ClearVoxels()
 		{
-			Voxels?.Clear();
+			Voxels?.Delete();
+			Voxels = null;
 		}
 
 		public static VoxelVolume GetOrCreateVoxelVolume()
