@@ -8,10 +8,13 @@ namespace Voxels
 		public Vector3 LocalSize { get; private set; }
 		public float ChunkSize { get; private set; }
 		public int ChunkSubdivisions { get; private set; }
+		public NormalStyle NormalStyle { get; private set;}
 
 		private float _chunkScale;
 		private Vector3i _chunkCount;
 		private Vector3 _chunkOffset;
+
+		private int _margin;
 
 		private readonly Dictionary<Vector3i, VoxelChunk> _chunks = new Dictionary<Vector3i, VoxelChunk>();
 
@@ -20,15 +23,18 @@ namespace Voxels
 
 		}
 
-		public VoxelVolume( Vector3 size, float chunkSize, int chunkSubdivisions = 4 )
+		public VoxelVolume( Vector3 size, float chunkSize, int chunkSubdivisions = 4, NormalStyle normalStyle = NormalStyle.Smooth )
 		{
 			LocalSize = size;
 			ChunkSize = chunkSize;
 			ChunkSubdivisions = chunkSubdivisions;
+			NormalStyle = normalStyle;
 
 			_chunkScale = 1f / ChunkSize;
 			_chunkCount = Vector3i.Ceiling( LocalSize * _chunkScale );
 			_chunkOffset = LocalSize * -0.5f;
+
+			_margin = normalStyle == NormalStyle.Flat ? 1 : 2;
 		}
 
 		protected override void OnDestroy()
@@ -60,17 +66,18 @@ namespace Voxels
 				* Matrix.CreateTranslation( _chunkOffset )
 				* localTransform.Inverted;
 
-			chunkBounds = (localTransform.Transform( bounds ) + -_chunkOffset) * _chunkScale;
+			chunkBounds = localTransform.Transform( bounds ) + -_chunkOffset;
+			chunkBounds = new BBox( chunkBounds.Mins - _margin - 1, chunkBounds.Maxs + _margin + 1 ) * _chunkScale;
 
-			minChunkIndex = Vector3i.Floor( chunkBounds.Mins ) - 1;
-			maxChunkIndex = Vector3i.Ceiling( chunkBounds.Maxs ) + 2;
+			minChunkIndex = Vector3i.Floor( chunkBounds.Mins );
+			maxChunkIndex = Vector3i.Ceiling( chunkBounds.Maxs ) + 1;
 		}
 
 		private VoxelChunk GetOrCreateChunk( Vector3i index3 )
 		{
 			if ( _chunks.TryGetValue( index3, out var chunk ) ) return chunk;
 
-			_chunks.Add( index3, chunk = new VoxelChunk( new ArrayVoxelData( ChunkSubdivisions ), ChunkSize ) );
+			_chunks.Add( index3, chunk = new VoxelChunk( new ArrayVoxelData( ChunkSubdivisions, NormalStyle ), ChunkSize ) );
 
 			chunk.Name = $"Chunk {index3.x} {index3.y} {index3.z}";
 

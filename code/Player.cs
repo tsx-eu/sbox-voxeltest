@@ -11,7 +11,7 @@ namespace VoxelTest
 
 			Controller = new WalkController();
 			Animator = new StandardPlayerAnimator();
-			Camera = new FirstPersonCamera();
+			Camera = new ThirdPersonCamera();
 
 			EnableAllCollisions = true;
 			EnableDrawing = true;
@@ -45,7 +45,7 @@ namespace VoxelTest
 
 				var transform = Matrix.CreateTranslation( Vector3.Lerp( Position, EyePos, 0.5f ) );
 
-				Game.Voxels.Subtract( new SphereSdf( Vector3.Zero, 32f, 16f ), transform, 0 );
+				Game.Voxels.Subtract( new SphereSdf( Vector3.Zero, 64f, 32f ), transform, 0 );
 			}
 
 			if ( !IsServer )

@@ -33,6 +33,8 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
+
+	float3 DebugNormal : NORMAL;
 };
 
 //=========================================================================================================================
@@ -48,6 +50,7 @@ VS
 		PixelInput o = ProcessVertex( i );
 
 		i.vTexCoord = i.vPositionOs.xy;
+		o.DebugNormal = i.vNormalOs.xyz;
 
 		return FinalizeVertex( o );
 	}
@@ -64,6 +67,8 @@ PS
 	PixelOutput MainPs( PixelInput i )
 	{
 		Material m = GatherMaterial( i );
+
+		m.Albedo = float3(1.0, 1.0, 1.0); // i.DebugNormal * 0.5 + 0.5;
 
 		return FinalizePixelMaterial( i, m );
 	}
