@@ -5,13 +5,21 @@ using System.Linq;
 
 namespace Voxels
 {
+	public enum NormalStyle
+	{
+		Flat,
+		Smooth
+	}
+
 	public interface IVoxelMeshWriter
 	{
-		void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max );
+		void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, NormalStyle normalStyle );
 
-		public void Write( Voxel[] data, Vector3i size )
+		public void Write( Voxel[] data, Vector3i size, NormalStyle normalStyle )
 		{
-			Write( data, size, 0, size );
+			var margin = normalStyle == NormalStyle.Flat ? 0 : 1;
+
+			Write( data, size, margin, size - margin, NormalStyle.Flat );
 		}
 	}
 
@@ -50,6 +58,8 @@ namespace Voxels
 
 		private bool _isInPool;
 
+		private Vector3[] _normals;
+
 		public List<VoxelVertex> Vertices { get; } = new List<VoxelVertex>();
 
 		public Vector3 Offset { get; set; } = 0f;
@@ -63,8 +73,24 @@ namespace Voxels
 			Scale = 1f;
 		}
 
-		public void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max )
+		public void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, NormalStyle normalStyle )
 		{
+			if ( normalStyle != NormalStyle.Flat )
+			{
+				if ( min.x < 1 || min.y < 1 || min.z < 1 || max.x >= size.x || max.y >= size.y || max.z >= size.z)
+				{
+					throw new ArgumentException( $"When using non-flat normals, {nameof(min)} and {nameof(max)} " +
+						$"must have a margin of 1 from the full size of the array." );
+				}
+
+				if ( _normals == null || _normals.Length < data.Length )
+				{
+					_normals = new Vector3[data.Length];
+				}
+
+				CalculateNormals( data, size, min, max );
+			}
+
 			const int xStride = 1;
 			var yStride = xStride * size.x;
 			var zStride = yStride * size.y;
@@ -73,19 +99,31 @@ namespace Voxels
 
 			var scale = new Vector3( 1f / (max.x - min.x), 1f / (max.y - min.y), 1f / (max.z - min.z) );
 
+			Span<Vector3> normals = stackalloc Vector3[8];
+
+			var xIndexOffset = min.x * xStride;
+
 			for ( var z = min.z; z < max.z; ++z )
 			{
 				for ( var y = min.y; y < max.y; ++y )
 				{
-					var i0 = (y + 0) * yStride + (z + 0) * zStride;
-					var i1 = (y + 1) * yStride + (z + 0) * zStride;
-					var i2 = (y + 0) * yStride + (z + 1) * zStride;
-					var i3 = (y + 1) * yStride + (z + 1) * zStride;
+					var i0 = xIndexOffset + (y + 0) * yStride + (z + 0) * zStride;
+					var i1 = xIndexOffset + (y + 1) * yStride + (z + 0) * zStride;
+					var i2 = xIndexOffset + (y + 0) * yStride + (z + 1) * zStride;
+					var i3 = xIndexOffset + (y + 1) * yStride + (z + 1) * zStride;
 
 					var x0y0z0 = data[i0];
 					var x0y1z0 = data[i1];
 					var x0y0z1 = data[i2];
 					var x0y1z1 = data[i3];
+
+					if ( normalStyle != NormalStyle.Flat )
+					{
+						normals[0] = _normals[i0];
+						normals[2] = _normals[i1];
+						normals[4] = _normals[i2];
+						normals[6] = _normals[i3];
+					}
 
 					var x0hash
 						= ((x0y0z0.RawValue & 0x80) >> 7)
@@ -100,6 +138,14 @@ namespace Voxels
 						var x1y0z1 = data[++i2];
 						var x1y1z1 = data[++i3];
 
+						if ( normalStyle != NormalStyle.Flat )
+						{
+							normals[1] = _normals[i0];
+							normals[3] = _normals[i1];
+							normals[5] = _normals[i2];
+							normals[7] = _normals[i3];
+						}
+
 						var x1hash
 							= ((x1y0z0.RawValue & 0x80) >> 7)
 							| ((x1y1z0.RawValue & 0x80) >> 6)
@@ -110,9 +156,10 @@ namespace Voxels
 
 						if ( hash != 0b0000_0000 && hash != 0b1111_1111 )
 						{
-							Write( new Vector3i( x, y, z ), scale,
+							WriteCube( new Vector3i( x, y, z ), scale,
 								x0y0z0, x1y0z0, x0y1z0, x1y1z0,
-								x0y0z1, x1y0z1, x0y1z1, x1y1z1);
+								x0y0z1, x1y0z1, x0y1z1, x1y1z1,
+								normalStyle, normals );
 						}
 
 						x0y0z0 = x1y0z0;
@@ -121,6 +168,47 @@ namespace Voxels
 						x0y1z1 = x1y1z1;
 
 						x0hash = x1hash;
+
+						if ( normalStyle != NormalStyle.Flat )
+						{
+							normals[0] = normals[1];
+							normals[2] = normals[3];
+							normals[4] = normals[5];
+							normals[6] = normals[7];
+						}
+					}
+				}
+			}
+		}
+
+		private void CalculateNormals( Voxel[] data, Vector3i size, Vector3i min, Vector3i max )
+		{
+			const int xStride = 1;
+			var yStride = xStride * size.x;
+			var zStride = yStride * size.y;
+
+			for ( var z = min.z; z < max.z; ++z )
+			{
+				for ( var y = min.y; y < max.y; ++y )
+				{
+					var index = min.x * xStride + y * yStride + z * zStride;
+
+					for ( var x = min.x; x < max.x; ++x, ++index )
+					{
+						var xNeg = data[index - xStride].RawValue;
+						var xPos = data[index + xStride].RawValue;
+						var yNeg = data[index - yStride].RawValue;
+						var yPos = data[index + yStride].RawValue;
+						var zNeg = data[index - zStride].RawValue;
+						var zPos = data[index + zStride].RawValue;
+
+						var hash = xNeg + xPos + yNeg + yPos + zNeg + zPos;
+
+						if ( hash == 0 || hash == 255 * 6 ) continue;
+
+						var diff = new Vector3( xNeg - xPos, yNeg - yPos, zNeg - zPos );
+
+						_normals[index] = diff.Normal;
 					}
 				}
 			}
@@ -236,11 +324,26 @@ namespace Voxels
 		private static readonly Vector3 X0Y1Z1 = new Vector3( 0f, 1f, 1f );
 		private static readonly Vector3 X1Y1Z1 = new Vector3( 1f, 1f, 1f );
 
-		public void Write( Vector3i index3, Vector3 scale,
+		private Vector3 InterpolateNormal( in Span<Vector3> normals, Vector3 pos )
+		{
+			var x00 = Vector3.Lerp( normals[0], normals[1], pos.x );
+			var x10 = Vector3.Lerp( normals[2], normals[3], pos.x );
+			var x01 = Vector3.Lerp( normals[4], normals[5], pos.x );
+			var x11 = Vector3.Lerp( normals[6], normals[7], pos.x );
+
+			var xy0 = Vector3.Lerp( x00, x10, pos.y );
+			var xy1 = Vector3.Lerp( x01, x11, pos.y );
+
+			return Vector3.Lerp( xy0, xy1, pos.z ).Normal;
+		}
+
+		private void WriteCube( Vector3i index3, Vector3 scale,
 			Voxel x0y0z0, Voxel x1y0z0,
 			Voxel x0y1z0, Voxel x1y1z0,
 			Voxel x0y0z1, Voxel x1y0z1,
-			Voxel x0y1z1, Voxel x1y1z1 )
+			Voxel x0y1z1, Voxel x1y1z1,
+			NormalStyle normalStyle,
+			in Span<Vector3> normals )
 		{
 			// Find out if / where the surface intersects each edge of the cube.
 
@@ -308,6 +411,14 @@ namespace Voxels
 				var a = offset + first.Pos0 * scale;
 				var b = offset + first.Pos1 * scale;
 
+				Vector3 aNorm = default, bNorm = default;
+
+				if ( normalStyle != NormalStyle.Flat )
+				{
+					aNorm = InterpolateNormal( normals, first.Pos0 );
+					bNorm = InterpolateNormal( normals, first.Pos1 );
+				}
+
 				// We skip the first edge, and break on the last edge, so
 				// we output a triangle every N-2 edges in the loop.
 
@@ -321,13 +432,36 @@ namespace Voxels
 
 					var c = offset + next.Pos1 * scale;
 
-					var cross = Vector3.Cross( b - a, c - a );
-					var normal = cross.Normal;
-					var tangent = (b - a).Normal;
+					switch ( normalStyle )
+					{
+						case NormalStyle.Flat:
+						{
+							var cross = Vector3.Cross( b - a, c - a );
+							var normal = cross.Normal;
+							var tangent = (b - a).Normal;
 
-					Vertices.Add( new VoxelVertex( a, normal, tangent ) );
-					Vertices.Add( new VoxelVertex( b, normal, tangent ) );
-					Vertices.Add( new VoxelVertex( c, normal, tangent ) );
+							Vertices.Add( new VoxelVertex( a, normal, tangent ) );
+							Vertices.Add( new VoxelVertex( b, normal, tangent ) );
+							Vertices.Add( new VoxelVertex( c, normal, tangent ) );
+
+							break;
+						}
+
+						case NormalStyle.Smooth:
+						{
+							var cNorm = InterpolateNormal( normals, next.Pos1 );
+
+							var tangent = (b - a).Normal;
+
+							Vertices.Add( new VoxelVertex( a, aNorm, tangent ) );
+							Vertices.Add( new VoxelVertex( b, bNorm, tangent ) );
+							Vertices.Add( new VoxelVertex( c, cNorm, tangent ) );
+
+							bNorm = cNorm;
+
+							break;
+						}
+					}
 
 					b = c;
 					prev = next;

@@ -18,15 +18,17 @@ namespace Voxels
 		public const int MaxSubdivisions = 5;
 
 		public int Subdivisions { get; }
+		public NormalStyle NormalStyle { get; }
 
 		private Voxel[] _voxels;
 		private Vector3i _size;
+		private Vector3i _renderedSize;
 		private Vector3 _scale;
 
 		private bool _cleared;
 		private int _margin;
 
-		public ArrayVoxelData( int subdivisions )
+		public ArrayVoxelData( int subdivisions, NormalStyle normalStyle )
 		{
 			if ( subdivisions < 0 || subdivisions > MaxSubdivisions )
 			{
@@ -35,9 +37,16 @@ namespace Voxels
 			}
 
 			Subdivisions = subdivisions;
+			NormalStyle = normalStyle;
 
 			_cleared = true;
-			_margin = 0;
+			_margin = normalStyle == NormalStyle.Flat ? 0 : 1;
+
+			var resolution = 1 << Subdivisions;
+
+			_renderedSize = resolution;
+			_size = _renderedSize + _margin * 2 + 1;
+			_scale = 1f / resolution;
 		}
 
 		public bool Clear()
@@ -55,23 +64,18 @@ namespace Voxels
 		{
 			if ( _voxels == null || _cleared ) return;
 
-			writer.Write( _voxels, _size, 0, _size );
+			writer.Write( _voxels, _size, _margin, _size - _margin, NormalStyle );
 		}
 
 		private bool PrepareVoxelsForEditing( BBox bounds, out Vector3i outerMin, out Vector3i outerMax )
 		{
 			if ( _voxels == null )
 			{
-				var resolution = 1 << Subdivisions;
-
-				_size = resolution + _margin * 2 + 1;
-				_scale = 1f / resolution;
-
 				_voxels = new Voxel[_size.x * _size.y * _size.z];
 			}
 
-			outerMin = Vector3i.Max( Vector3i.Floor( bounds.Mins * (_size - 1) ), 0 );
-			outerMax = Vector3i.Min( Vector3i.Ceiling( bounds.Maxs * (_size - 1) ) + 1, _size );
+			outerMin = Vector3i.Max( Vector3i.Floor( bounds.Mins * _renderedSize ) - _margin - 1, 0 );
+			outerMax = Vector3i.Min( Vector3i.Ceiling( bounds.Maxs * _renderedSize ) + 2 + _margin, _size );
 
 			return outerMin.x < outerMax.x && outerMin.y < outerMax.y && outerMin.z < outerMax.z;
 		}
@@ -88,7 +92,7 @@ namespace Voxels
 
 			foreach ( var (index3, index) in _size.EnumerateArray3D( outerMin, outerMax ) )
 			{
-				var pos = transform.Transform( index3 * _scale );
+				var pos = transform.Transform( (index3 - _margin) * _scale );
 				var next = new Voxel( sdf[pos], materialIndex );
 				var prev = _voxels[index];
 
@@ -114,7 +118,7 @@ namespace Voxels
 
 			foreach ( var (index3, index) in _size.EnumerateArray3D( outerMin, outerMax ) )
 			{
-				var pos = transform.Transform( index3 * _scale );
+				var pos = transform.Transform( (index3 - _margin) * _scale );
 				var next = new Voxel( sdf[pos], materialIndex );
 				var prev = _voxels[index];
 
