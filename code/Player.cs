@@ -39,13 +39,28 @@ namespace VoxelTest
 		{
 			base.Simulate( cl );
 
-			if ( IsClient && Game.Voxels != null && LastEdit > 1f / 60f )
+			if ( IsClient && LastEdit > 1f / 60f )
 			{
+				if ( Input.Down( InputButton.Attack1 ) || Input.Down( InputButton.Attack2 ) )
+				{
+					var voxels = Game.GetOrCreateVoxelVolume();
+					var pos = EyePos + EyeRot.Forward * 128f;
+					var transform = Matrix.CreateTranslation( pos );
+
+					if ( Input.Down( InputButton.Attack1 ) )
+					{
+						var shape = new SphereSdf( Vector3.Zero, 8f, 32f );
+						voxels.Add( shape, transform, 0 );
+					}
+					else
+					{
+						var shape = new SphereSdf( Vector3.Zero, 8f, 64f );
+						voxels.Subtract( shape, transform, 0 );
+					}
+				}
+
 				LastEdit = 0f;
 
-				var transform = Matrix.CreateTranslation( Vector3.Lerp( Position, EyePos, 0.5f ) );
-
-				Game.Voxels.Subtract( new SphereSdf( Vector3.Zero, 64f, 32f ), transform, 0 );
 			}
 
 			if ( !IsServer )
