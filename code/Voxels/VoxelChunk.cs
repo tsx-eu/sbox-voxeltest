@@ -58,20 +58,9 @@ namespace Voxels
 				_meshInvalid = false;
 
 				UpdateMesh( false, true );
+
 				Data.WriteNetworkData();
 			}
-		}
-
-		private void EnsureMeshCreated()
-		{
-			if ( _mesh != null ) return;
-
-			var material = Material.Load( "materials/voxeltest.vmat" );
-
-			_mesh = new Mesh( material )
-			{
-				Bounds = new BBox( 0f, Size )
-			};
 		}
 
 		public void UpdateMesh( bool render, bool collision )
@@ -82,70 +71,76 @@ namespace Voxels
 
 			try
 			{
-				Data.UpdateMesh( writer, 0, render, collision );
-
-				if ( writer.Vertices.Count == 0 && writer.CollisionVertices.Count == 0 )
+				if ( render )
 				{
-					if ( render )
+					Data.UpdateMesh( writer, 0, true, false );
+
+					if ( writer.Vertices.Count == 0 )
 					{
 						EnableDrawing = false;
 						EnableShadowCasting = false;
-					}
 
-					if ( collision )
+						SetModel( "" );
+					}
+					else
 					{
-						if ( PhysicsBody != null && PhysicsBody.ShapeCount > 0 )
+						if ( _mesh == null )
+						{
+							var material = Material.Load( "materials/voxeltest.vmat" );
+
+							_mesh = new Mesh( material )
+							{
+								Bounds = new BBox( 0f, Size )
+							};
+						}
+
+						if ( _mesh.HasVertexBuffer )
+						{
+							_mesh.SetVertexBufferSize( writer.Vertices.Count );
+							_mesh.SetVertexBufferData( writer.Vertices );
+						}
+						else
+						{
+							_mesh.CreateVertexBuffer( writer.Vertices.Count, VoxelVertex.Layout, writer.Vertices );
+						}
+
+						_mesh.SetVertexRange( 0, writer.Vertices.Count );
+
+						if ( _model == null )
+						{
+							var modelBuilder = new ModelBuilder();
+
+							modelBuilder.AddMesh( _mesh );
+
+							_model = modelBuilder.Create();
+						}
+
+						EnableDrawing = true;
+						EnableShadowCasting = true;
+
+						SetModel( _model );
+					}
+				}
+
+				if ( collision )
+				{
+					Data.UpdateMesh( writer, 1, false, true );
+
+					if ( writer.CollisionVertices.Count == 0 )
+					{
+						if ( PhysicsBody != null && PhysicsBody.IsValid() && PhysicsBody.ShapeCount > 0 )
 						{
 							PhysicsBody.RemoveShape( PhysicsBody.Shapes.First(), false );
 						}
 					}
-
-					SetModel( "" );
-
-					return;
-				}
-
-				EnsureMeshCreated();
-
-				if ( render )
-				{
-					if ( _mesh.HasVertexBuffer )
-					{
-						_mesh.SetVertexBufferSize( writer.Vertices.Count );
-						_mesh.SetVertexBufferData( writer.Vertices );
-					}
 					else
 					{
-						_mesh.CreateVertexBuffer( writer.Vertices.Count, VoxelVertex.Layout, writer.Vertices );
-					}
+						if ( PhysicsBody == null || !PhysicsBody.IsValid() )
+						{
+							// Just to initialize PhysicsBody
+							SetupPhysicsFromAABB( PhysicsMotionType.Static, 0f, Size );
+						}
 
-					_mesh.SetVertexRange( 0, writer.Vertices.Count );
-				}
-
-				if ( _model == null )
-				{
-					var modelBuilder = new ModelBuilder();
-
-					modelBuilder.AddMesh( _mesh );
-					modelBuilder.AddCollisionMesh( writer.CollisionVertices.ToArray(), writer.CollisionIndices.ToArray() );
-
-					_model = modelBuilder.Create();
-
-					SetModel( _model );
-					SetupPhysicsFromModel( PhysicsMotionType.Static );
-				}
-				else
-				{
-					if ( render )
-					{
-						EnableDrawing = true;
-						EnableShadowCasting = true;
-					}
-
-					SetModel( _model );
-
-					if ( collision && PhysicsBody != null && PhysicsBody.IsValid() )
-					{
 						if ( PhysicsBody.ShapeCount > 0 )
 						{
 							PhysicsBody.RemoveShape( PhysicsBody.Shapes.First(), false );
@@ -154,7 +149,6 @@ namespace Voxels
 						PhysicsBody.AddMeshShape( writer.CollisionVertices.ToArray(), writer.CollisionIndices.ToArray() );
 					}
 				}
-
 			}
 			finally
 			{
