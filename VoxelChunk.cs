@@ -4,24 +4,26 @@ namespace Voxels
 {
 	public partial class VoxelChunk : ModelEntity
 	{
-		public IVoxelData Data { get; private set; }
-
-		public float Size { get; private set; }
+		[Net] public ArrayVoxelData Data { get; private set; }
+		[Net] public float Size { get; private set; }
 
 		private Mesh _mesh;
 		private Model _model;
 
 		private bool _meshInvalid;
+		private int _lastNetReadCount;
 
 		public VoxelChunk()
 		{
 
 		}
 
-		public VoxelChunk( IVoxelData data, float size )
+		public VoxelChunk( ArrayVoxelData data, float size )
 		{
 			Data = data;
 			Size = size;
+
+			CollisionBounds = new BBox( 0f, size );
 		}
 
 		public void InvalidateMesh()
@@ -30,13 +32,32 @@ namespace Voxels
 		}
 
 		[Event.Tick.Client]
-		public void Tick()
+		public void ClientTick()
+		{
+			if ( _lastNetReadCount != Data.NetReadCount )
+			{
+				_lastNetReadCount = Data.NetReadCount;
+
+				InvalidateMesh();
+			}
+
+			if ( _meshInvalid )
+			{
+				_meshInvalid = false;
+
+				UpdateMesh( true, true );
+			}
+		}
+
+		[Event.Tick.Server]
+		public void ServerTick()
 		{
 			if ( _meshInvalid )
 			{
 				_meshInvalid = false;
 
-				UpdateMesh();
+				UpdateMesh( false, true );
+				Data.WriteNetworkData();
 			}
 		}
 
@@ -52,7 +73,7 @@ namespace Voxels
 			};
 		}
 
-		public void UpdateMesh()
+		public void UpdateMesh( bool model, bool collision )
 		{
 			var writer = MarchingCubesMeshWriter.Rent();
 
