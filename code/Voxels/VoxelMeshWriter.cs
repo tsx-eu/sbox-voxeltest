@@ -13,14 +13,7 @@ namespace Voxels
 
 	public interface IVoxelMeshWriter
 	{
-		void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, NormalStyle normalStyle );
-
-		public void Write( Voxel[] data, Vector3i size, NormalStyle normalStyle )
-		{
-			var margin = normalStyle == NormalStyle.Flat ? 0 : 1;
-
-			Write( data, size, margin, size - margin, NormalStyle.Flat );
-		}
+		void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, int lod, NormalStyle normalStyle, bool render, bool collision );
 	}
 
 	public partial class MarchingCubesMeshWriter : IVoxelMeshWriter
@@ -61,6 +54,8 @@ namespace Voxels
 		private Vector3[] _normals;
 
 		public List<VoxelVertex> Vertices { get; } = new List<VoxelVertex>();
+		public List<Vector3> CollisionVertices { get; } = new List<Vector3>();
+		public List<int> CollisionIndices { get; } = new List<int>();
 
 		public Vector3 Offset { get; set; } = 0f;
 		public Vector3 Scale { get; set; } = 1f;
@@ -68,16 +63,21 @@ namespace Voxels
 		public void Clear()
 		{
 			Vertices.Clear();
+			CollisionVertices.Clear();
+			CollisionIndices.Clear();
 
 			Offset = 0f;
 			Scale = 1f;
 		}
 
-		public void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, NormalStyle normalStyle )
+		public void Write( Voxel[] data, Vector3i size, Vector3i min, Vector3i max, int lod, NormalStyle normalStyle, bool render, bool collision )
 		{
-			if ( normalStyle != NormalStyle.Flat )
+			var updateNormals = render && normalStyle != NormalStyle.Flat;
+			var step = 1 << lod;
+
+			if ( updateNormals )
 			{
-				if ( min.x < 1 || min.y < 1 || min.z < 1 || max.x >= size.x || max.y >= size.y || max.z >= size.z)
+				if ( min.x < step || min.y < step || min.z < step || max.x > size.x - step || max.y > size.y - step || max.z > size.z - step )
 				{
 					throw new ArgumentException( $"When using non-flat normals, {nameof(min)} and {nameof(max)} " +
 						$"must have a margin of 1 from the full size of the array." );
@@ -91,11 +91,14 @@ namespace Voxels
 				CalculateNormals( data, size, min, max );
 			}
 
-			const int xStride = 1;
-			var yStride = xStride * size.x;
-			var zStride = yStride * size.y;
+			var xStride = step;
+			var yStride = size.x * step;
+			var zStride = size.x * size.y * step;
 
 			max -= 1;
+
+			min /= step;
+			max /= step;
 
 			var scale = new Vector3( 1f / (max.x - min.x), 1f / (max.y - min.y), 1f / (max.z - min.z) );
 
@@ -117,7 +120,7 @@ namespace Voxels
 					var x0y0z1 = data[i2];
 					var x0y1z1 = data[i3];
 
-					if ( normalStyle != NormalStyle.Flat )
+					if ( updateNormals )
 					{
 						normals[0] = _normals[i0];
 						normals[2] = _normals[i1];
@@ -133,12 +136,17 @@ namespace Voxels
 
 					for ( var x = min.x; x < max.x; ++x )
 					{
-						var x1y0z0 = data[++i0];
-						var x1y1z0 = data[++i1];
-						var x1y0z1 = data[++i2];
-						var x1y1z1 = data[++i3];
+						i0 += xStride;
+						i1 += xStride;
+						i2 += xStride;
+						i3 += xStride;
 
-						if ( normalStyle != NormalStyle.Flat )
+						var x1y0z0 = data[i0];
+						var x1y1z0 = data[i1];
+						var x1y0z1 = data[i2];
+						var x1y1z1 = data[i3];
+
+						if ( updateNormals )
 						{
 							normals[1] = _normals[i0];
 							normals[3] = _normals[i1];
@@ -159,7 +167,7 @@ namespace Voxels
 							WriteCube( new Vector3i( x, y, z ), scale,
 								x0y0z0, x1y0z0, x0y1z0, x1y1z0,
 								x0y0z1, x1y0z1, x0y1z1, x1y1z1,
-								normalStyle, normals );
+								normalStyle, normals, render, collision );
 						}
 
 						x0y0z0 = x1y0z0;
@@ -169,7 +177,7 @@ namespace Voxels
 
 						x0hash = x1hash;
 
-						if ( normalStyle != NormalStyle.Flat )
+						if ( updateNormals )
 						{
 							normals[0] = normals[1];
 							normals[2] = normals[3];
@@ -343,7 +351,8 @@ namespace Voxels
 			Voxel x0y0z1, Voxel x1y0z1,
 			Voxel x0y1z1, Voxel x1y1z1,
 			NormalStyle normalStyle,
-			in Span<Vector3> normals )
+			in Span<Vector3> normals,
+			bool render, bool collision)
 		{
 			// Find out if / where the surface intersects each edge of the cube.
 
@@ -411,9 +420,18 @@ namespace Voxels
 				var a = offset + first.Pos0 * scale;
 				var b = offset + first.Pos1 * scale;
 
+				var aIndex = CollisionVertices.Count;
+				var bIndex = CollisionVertices.Count + 1;
+
+				if ( collision )
+				{
+					CollisionVertices.Add( a );
+					CollisionVertices.Add( b );
+				}
+
 				Vector3 aNorm = default, bNorm = default;
 
-				if ( normalStyle != NormalStyle.Flat )
+				if ( render && normalStyle != NormalStyle.Flat )
 				{
 					aNorm = InterpolateNormal( normals, first.Pos0 );
 					bNorm = InterpolateNormal( normals, first.Pos1 );
@@ -432,35 +450,51 @@ namespace Voxels
 
 					var c = offset + next.Pos1 * scale;
 
-					switch ( normalStyle )
+					if ( render )
 					{
-						case NormalStyle.Flat:
+						switch ( normalStyle )
 						{
-							var cross = Vector3.Cross( b - a, c - a );
-							var normal = cross.Normal;
-							var tangent = (b - a).Normal;
+							case NormalStyle.Flat:
+								{
+									var cross = Vector3.Cross( b - a, c - a );
+									var normal = cross.Normal;
+									var tangent = (b - a).Normal;
 
-							Vertices.Add( new VoxelVertex( a, normal, tangent ) );
-							Vertices.Add( new VoxelVertex( b, normal, tangent ) );
-							Vertices.Add( new VoxelVertex( c, normal, tangent ) );
+									Vertices.Add( new VoxelVertex( a, normal, tangent ) );
+									Vertices.Add( new VoxelVertex( b, normal, tangent ) );
+									Vertices.Add( new VoxelVertex( c, normal, tangent ) );
 
-							break;
+									break;
+								}
+
+							case NormalStyle.Smooth:
+								{
+									var cNorm = InterpolateNormal( normals, next.Pos1 );
+
+									var tangent = (b - a).Normal;
+
+									Vertices.Add( new VoxelVertex( a, aNorm, tangent ) );
+									Vertices.Add( new VoxelVertex( b, bNorm, tangent ) );
+									Vertices.Add( new VoxelVertex( c, cNorm, tangent ) );
+
+									bNorm = cNorm;
+
+									break;
+								}
 						}
+					}
 
-						case NormalStyle.Smooth:
-						{
-							var cNorm = InterpolateNormal( normals, next.Pos1 );
+					if ( collision )
+					{
+						CollisionVertices.Add( c );
 
-							var tangent = (b - a).Normal;
+						var cIndex = bIndex + 1;
 
-							Vertices.Add( new VoxelVertex( a, aNorm, tangent ) );
-							Vertices.Add( new VoxelVertex( b, bNorm, tangent ) );
-							Vertices.Add( new VoxelVertex( c, cNorm, tangent ) );
+						CollisionIndices.Add( aIndex );
+						CollisionIndices.Add( bIndex );
+						CollisionIndices.Add( cIndex );
 
-							bNorm = cNorm;
-
-							break;
-						}
+						bIndex = cIndex;
 					}
 
 					b = c;

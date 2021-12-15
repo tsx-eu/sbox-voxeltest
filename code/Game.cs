@@ -43,7 +43,7 @@ namespace VoxelTest
 
 			if ( Voxels != null ) return Voxels;
 
-			Voxels = new VoxelVolume( new Vector3( 32_768f, 32_768f, 32_768f ), 256f );
+			Voxels = new VoxelVolume( new Vector3( 32_768f, 32_768f, 32_768f ), 256f, 4, NormalStyle.Smooth );
 
 			return Voxels;
 		}

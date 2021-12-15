@@ -1,4 +1,5 @@
 ﻿using Sandbox;
+using System.Linq;
 
 namespace Voxels
 {
@@ -73,7 +74,7 @@ namespace Voxels
 			};
 		}
 
-		public void UpdateMesh( bool model, bool collision )
+		public void UpdateMesh( bool render, bool collision )
 		{
 			var writer = MarchingCubesMeshWriter.Rent();
 
@@ -81,49 +82,84 @@ namespace Voxels
 
 			try
 			{
-				Data.UpdateMesh( writer );
+				Data.UpdateMesh( writer, 0, render, collision );
 
-				if ( writer.Vertices.Count == 0 )
+				if ( writer.Vertices.Count == 0 && writer.CollisionVertices.Count == 0 )
 				{
-					EnableDrawing = false;
-					EnableShadowCasting = false;
+					if ( render )
+					{
+						EnableDrawing = false;
+						EnableShadowCasting = false;
+					}
+
+					if ( collision )
+					{
+						if ( PhysicsBody != null && PhysicsBody.ShapeCount > 0 )
+						{
+							PhysicsBody.RemoveShape( PhysicsBody.Shapes.First(), false );
+						}
+					}
 
 					SetModel( "" );
+
 					return;
 				}
 
 				EnsureMeshCreated();
 
-				if ( _mesh.HasVertexBuffer )
+				if ( render )
 				{
-					_mesh.SetVertexBufferSize( writer.Vertices.Count );
-					_mesh.SetVertexBufferData( writer.Vertices );
+					if ( _mesh.HasVertexBuffer )
+					{
+						_mesh.SetVertexBufferSize( writer.Vertices.Count );
+						_mesh.SetVertexBufferData( writer.Vertices );
+					}
+					else
+					{
+						_mesh.CreateVertexBuffer( writer.Vertices.Count, VoxelVertex.Layout, writer.Vertices );
+					}
+
+					_mesh.SetVertexRange( 0, writer.Vertices.Count );
+				}
+
+				if ( _model == null )
+				{
+					var modelBuilder = new ModelBuilder();
+
+					modelBuilder.AddMesh( _mesh );
+					modelBuilder.AddCollisionMesh( writer.CollisionVertices.ToArray(), writer.CollisionIndices.ToArray() );
+
+					_model = modelBuilder.Create();
+
+					SetModel( _model );
+					SetupPhysicsFromModel( PhysicsMotionType.Static );
 				}
 				else
 				{
-					_mesh.CreateVertexBuffer( writer.Vertices.Count, VoxelVertex.Layout, writer.Vertices );
+					if ( render )
+					{
+						EnableDrawing = true;
+						EnableShadowCasting = true;
+					}
+
+					SetModel( _model );
+
+					if ( collision && PhysicsBody != null && PhysicsBody.IsValid() )
+					{
+						if ( PhysicsBody.ShapeCount > 0 )
+						{
+							PhysicsBody.RemoveShape( PhysicsBody.Shapes.First(), false );
+						}
+
+						PhysicsBody.AddMeshShape( writer.CollisionVertices.ToArray(), writer.CollisionIndices.ToArray() );
+					}
 				}
 
-				_mesh.SetVertexRange( 0, writer.Vertices.Count );
 			}
 			finally
 			{
 				writer.Return();
 			}
-
-			if ( _model == null )
-			{
-				var modelBuilder = new ModelBuilder();
-
-				modelBuilder.AddMesh( _mesh );
-
-				_model = modelBuilder.Create();
-			}
-
-			SetModel( _model );
-
-			EnableDrawing = true;
-			EnableShadowCasting = true;
 		}
 
 		protected override void OnDestroy()
