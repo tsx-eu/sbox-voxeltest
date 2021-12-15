@@ -33,8 +33,6 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-
-	float3 DebugNormal : NORMAL;
 };
 
 //=========================================================================================================================
@@ -48,9 +46,6 @@ VS
 	PixelInput MainVs( VertexInput i )
 	{
 		PixelInput o = ProcessVertex( i );
-
-		i.vTexCoord = i.vPositionOs.xy;
-		o.DebugNormal = i.vNormalOs.xyz;
 
 		return FinalizeVertex( o );
 	}
@@ -66,9 +61,33 @@ PS
 	//
 	PixelOutput MainPs( PixelInput i )
 	{
-		Material m = GatherMaterial( i );
+		float3 worldPos = (i.vPositionWithOffsetWs.xyz + g_vCameraPositionWs.xyz) / 64.0;
 
-		m.Albedo = float3(1.0, 1.0, 1.0); // i.DebugNormal * 0.5 + 0.5;
+		float3 triblend = saturate(pow(i.vNormalWs, 4));
+        triblend /= max(dot(triblend, half3(1,1,1)), 0.0001);
+
+		float2 uvX = worldPos.yz * 1.0 + 0.0;
+        float2 uvY = worldPos.xz * 1.0 + 0.0;
+        float2 uvZ = worldPos.yx * 1.0 + 0.0;
+
+		float4 colX = Tex2DS( g_tColor, TextureFiltering, uvX );
+        float4 colY = Tex2DS( g_tColor, TextureFiltering, uvY );
+        float4 colZ = Tex2DS( g_tColor, TextureFiltering, uvZ );
+        float4 col = colX * triblend.x + colY * triblend.y + colZ * triblend.z;
+
+		float4 normX = Tex2DS( g_tNormal, TextureFiltering, uvX );
+        float4 normY = Tex2DS( g_tNormal, TextureFiltering, uvY );
+        float4 normZ = Tex2DS( g_tNormal, TextureFiltering, uvZ );
+
+		// I know this is wrong!
+        float4 norm = normX * triblend.x + normY * triblend.y + normZ * triblend.z;
+		
+		float4 rmaX = Tex2DS( g_tRma, TextureFiltering, uvX );
+        float4 rmaY = Tex2DS( g_tRma, TextureFiltering, uvY );
+        float4 rmaZ = Tex2DS( g_tRma, TextureFiltering, uvZ );
+        float4 rma = rmaX * triblend.x + rmaY * triblend.y + rmaZ * triblend.z;
+
+		Material m = ToMaterial( col, norm, rma, g_flTintColor  );
 
 		return FinalizePixelMaterial( i, m );
 	}
