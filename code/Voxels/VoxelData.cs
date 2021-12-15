@@ -1,4 +1,6 @@
+using Sandbox;
 using System;
+using System.Linq;
 
 namespace Voxels
 {
@@ -13,12 +15,14 @@ namespace Voxels
 			where T : ISignedDistanceField;
 	}
 
-	public class ArrayVoxelData : IVoxelData
+	public partial class ArrayVoxelData : BaseNetworkable, IVoxelData, INetworkSerializer
 	{
 		public const int MaxSubdivisions = 5;
 
-		public int Subdivisions { get; }
-		public NormalStyle NormalStyle { get; }
+		public int Subdivisions { get; private set; }
+		public NormalStyle NormalStyle { get; private set; }
+
+		public int NetReadCount { get; private set; }
 
 		private Voxel[] _voxels;
 		private Vector3i _size;
@@ -28,6 +32,11 @@ namespace Voxels
 		private bool _cleared;
 		private int _margin;
 
+		public ArrayVoxelData()
+		{
+
+		}
+
 		public ArrayVoxelData( int subdivisions, NormalStyle normalStyle )
 		{
 			if ( subdivisions < 0 || subdivisions > MaxSubdivisions )
@@ -36,6 +45,11 @@ namespace Voxels
 					$"Expected {nameof(subdivisions)} to be between 0 and {MaxSubdivisions}." );
 			}
 
+			Init( subdivisions, normalStyle );
+		}
+
+		private void Init( int subdivisions, NormalStyle normalStyle )
+		{
 			Subdivisions = subdivisions;
 			NormalStyle = normalStyle;
 
@@ -130,6 +144,34 @@ namespace Voxels
 			if ( changed ) _cleared = false;
 
 			return changed;
+		}
+
+		public void Read( ref NetRead read )
+		{
+			var subDivs = read.Read<int>();
+			var normalStyle = read.Read<NormalStyle>();
+
+			if ( Subdivisions != subDivs || NormalStyle != normalStyle )
+			{
+				Init( subDivs, normalStyle );
+			}
+
+			_voxels = read.ReadUnmanagedArray( _voxels );
+			_cleared = false;
+
+			++NetReadCount;
+		}
+
+		public void Write( NetWrite write )
+		{
+			write.Write( Subdivisions );
+			write.Write( NormalStyle );
+			write.WriteUnmanagedArray( _voxels );
+		}
+
+		public override string ToString()
+		{
+			return $"(Subdivisions: {Subdivisions}, {(_voxels != null ? "Has Data" :  "No Data")})";
 		}
 	}
 }

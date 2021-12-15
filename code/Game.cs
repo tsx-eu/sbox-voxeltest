@@ -6,6 +6,8 @@ namespace VoxelTest
 {
 	public partial class Game : Sandbox.Game
 	{
+		public static new Game Current => Sandbox.Game.Current as Game;
+
 		public override void ClientJoined( Client client )
 		{
 			base.ClientJoined( client );
@@ -23,17 +25,22 @@ namespace VoxelTest
 
 		}
 
-		public static VoxelVolume Voxels { get; private set; }
+		[Net] public VoxelVolume Voxels { get; private set; }
 
-		[ClientCmd( "clear_voxels" )]
+		[ServerCmd( "clear_voxels" )]
 		public static void ClearVoxels()
 		{
-			Voxels?.Delete();
-			Voxels = null;
+			Current.Voxels?.Delete();
+			Current.Voxels = null;
 		}
 
-		public static VoxelVolume GetOrCreateVoxelVolume()
+		public VoxelVolume GetOrCreateVoxelVolume()
 		{
+			if ( !IsServer )
+			{
+				throw new System.Exception( $"{nameof( GetOrCreateVoxelVolume )} can only be called on the server." );
+			}
+
 			if ( Voxels != null ) return Voxels;
 
 			Voxels = new VoxelVolume( new Vector3( 32_768f, 32_768f, 32_768f ), 256f );
@@ -41,15 +48,16 @@ namespace VoxelTest
 			return Voxels;
 		}
 
-		[ClientCmd( "spawn_spheres" )]
+		[ServerCmd( "spawn_spheres" )]
 		public static void SpawnSphere( int count = 1 )
 		{
-			var voxels = GetOrCreateVoxelVolume();
+			var caller = ConsoleSystem.Caller;
+			var voxels = Current.GetOrCreateVoxelVolume();
 
 			var timer = new Stopwatch();
 			timer.Start();
 
-			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + Local.Client.Pawn.Position;
+			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + caller.Pawn.Position;
 			var smoothing = 16f;
 
 			for ( var i = 0; i < count; ++i )
@@ -63,17 +71,18 @@ namespace VoxelTest
 			Log.Info( $"Spawned {count} spheres in {timer.Elapsed.TotalMilliseconds:F2}ms" );
 		}
 
-		[ClientCmd( "spawn_boxes" )]
+		[ServerCmd( "spawn_boxes" )]
 		public static void SpawnBoxes( int count = 1 )
 		{
-			var voxels = GetOrCreateVoxelVolume();
+			var caller = ConsoleSystem.Caller;
+			var voxels = Current.GetOrCreateVoxelVolume();
 
 			var timer = new Stopwatch();
 			timer.Start();
 
 			var sizeRange = new BBox( 32, 128f );
 
-			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + Local.Client.Pawn.Position;
+			var bounds = new BBox( new Vector3( -512f, -512f, 0f ), new Vector3( 512f, 512f, 512f ) ) + caller.Pawn.Position;
 			var smoothing = 16f;
 
 			for ( var i = 0; i < count; ++i )

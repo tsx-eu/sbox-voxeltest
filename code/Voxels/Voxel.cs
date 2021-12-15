@@ -45,6 +45,11 @@ namespace Voxels
 			RawValue = rawValue;
 			MaterialIndex = materialIndex;
 		}
+
+		public override string ToString()
+		{
+			return $"({Value:F2}, {MaterialIndex})";
+		}
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
