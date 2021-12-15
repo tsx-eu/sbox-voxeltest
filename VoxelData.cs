@@ -7,7 +7,7 @@ namespace Voxels
 	public interface IVoxelData
 	{
 		bool Clear();
-		void UpdateMesh( IVoxelMeshWriter writer );
+		void UpdateMesh( IVoxelMeshWriter writer, int lod, bool render, bool collision );
 
 		bool Add<T>( T sdf, BBox bounds, Matrix transform, byte materialIndex )
 			where T : ISignedDistanceField;
@@ -74,11 +74,11 @@ namespace Voxels
 			return true;
 		}
 
-		public void UpdateMesh( IVoxelMeshWriter writer )
+		public void UpdateMesh( IVoxelMeshWriter writer, int lod, bool render, bool collision )
 		{
-			if ( _voxels == null || _cleared ) return;
+			if ( _voxels == null || _cleared || !render && !collision ) return;
 
-			writer.Write( _voxels, _size, _margin, _size - _margin, NormalStyle );
+			writer.Write( _voxels, _size, _margin, _size - _margin, lod, render ? NormalStyle : NormalStyle.Flat, render, collision );
 		}
 
 		private bool PrepareVoxelsForEditing( BBox bounds, out Vector3i outerMin, out Vector3i outerMax )

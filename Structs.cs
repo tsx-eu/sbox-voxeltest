@@ -34,6 +34,11 @@ namespace Voxels
 			return new Vector3i( -vector.x, -vector.y, -vector.z );
 		}
 
+		public static Vector3i operator /( Vector3i lhs, Vector3i rhs )
+		{
+			return new Vector3i( lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z );
+		}
+
 		public static bool operator ==( Vector3i lhs, Vector3i rhs )
 		{
 			return lhs.Equals( rhs );
